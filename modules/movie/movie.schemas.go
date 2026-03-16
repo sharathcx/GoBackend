@@ -11,28 +11,24 @@ type RankingSchema struct {
 }
 
 type MovieSchema struct {
-	MovieID     string        `bson:"movie_id" json:"movie_id" validate:"required"`
-	Title       string        `bson:"title" json:"title" validate:"required,min=2,max=100"`
-	PosterPath  string        `bson:"poster_path" json:"poster_path" validate:"required,url"`
-	YoutubeID   string        `bson:"youtube_id" json:"youtube_id" validate:"required"`
-	Genre       []GenreSchema `bson:"genre" json:"genre" validate:"required,dive"`
-	AdminReview string        `bson:"admin_review" json:"admin_review" validate:"required"`
-	Ranking     RankingSchema `bson:"ranking" json:"ranking" validate:"required"`
+	MovieID     string        `bson:"movie_id" json:"movie_id"`
+	Title       string        `bson:"title" json:"title"`
+	PosterPath  string        `bson:"poster_path" json:"poster_path"`
+	YoutubeID   string        `bson:"youtube_id" json:"youtube_id"`
+	Genre       []GenreSchema `bson:"genre" json:"genre"`
+	AdminReview string        `bson:"admin_review" json:"admin_review"`
+	Ranking     RankingSchema `bson:"ranking" json:"ranking"`
 }
 
 type GetMoviesPayloadSchema struct {
 	Limit int `form:"limit" binding:"omitempty,min=1,max=100" json:"limit"`
 }
 
-type GetMoviePayloadSchema struct {
-	MovieID string `uri:"movie_id" binding:"required" json:"movie_id"`
-}
-
 type AddMoviePayloadSchema struct {
-	Title       string        `bson:"title" json:"title" binding:"required,min=2,max=100"`
-	PosterPath  string        `bson:"poster_path" json:"poster_path" binding:"required,url"`
-	YoutubeID   string        `bson:"youtube_id" json:"youtube_id" binding:"required"`
-	Genre       []GenreSchema `bson:"genre" json:"genre" binding:"required,dive"`
-	AdminReview string        `bson:"admin_review" json:"admin_review" binding:"required"`
-	Ranking     RankingSchema `bson:"ranking" json:"ranking" binding:"required"`
+	Title       string        `json:"title" binding:"required,min=2,max=100"`
+	PosterPath  string        `json:"poster_path" binding:"required,url"`
+	YoutubeID   string        `json:"youtube_id" binding:"required"`
+	Genre       []GenreSchema `json:"genre" binding:"required,dive"`
+	AdminReview string        `json:"admin_review" binding:"required"`
+	Ranking     RankingSchema `json:"ranking" binding:"required"`
 }

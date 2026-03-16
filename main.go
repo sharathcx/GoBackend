@@ -2,19 +2,23 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"GoBackend/fastapify"
 	"GoBackend/modules/movie"
+	"GoBackend/modules/user"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	router := gin.Default()
+	router.Use(fastapify.TimeoutMiddleware(100 * time.Second))
 
 	api := fastapify.New(router)
 
 	movie.RegisterRoutes(api)
+	user.RegisterRoutes(api)
 
 	api.SetupSwagger("/openapi.json")
 

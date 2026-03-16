@@ -10,7 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-func DBinstance() *mongo.Client {
+func init() {
 
 	mongoURI := globals.Vars.MONGO_URI
 
@@ -27,10 +27,10 @@ func DBinstance() *mongo.Client {
 		log.Fatal("Failed to connect to MongoDB", err)
 	}
 
-	return client
+	Client = client
 }
 
-var Client *mongo.Client = DBinstance()
+var Client *mongo.Client
 
 func OpenCollection(collectionName string) *mongo.Collection {
 

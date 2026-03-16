@@ -1,14 +1,19 @@
 package fastapify
 
 import (
+	"context"
 	"net/http"
 	"reflect"
+	"regexp"
 	"strings"
-
-	"GoBackend/utils"
+	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"GoBackend/utils"
 )
+
+// --- Core Types ---
 
 type Wrapper struct {
 	Engine *gin.Engine
@@ -16,35 +21,106 @@ type Wrapper struct {
 }
 
 type RouteMeta struct {
-	Method string
-	Path   string
-	Tag    string
-	Input  reflect.Type
-	Output reflect.Type
+	Method       string
+	Path         string
+	Tag          string
+	BodyType     reflect.Type
+	ResponseType reflect.Type
+}
+
+type RouteBuilder struct {
+	wrapper *Wrapper
+	index   int
 }
 
 func New(r *gin.Engine) *Wrapper {
 	return &Wrapper{Engine: r}
 }
 
-func Get[Req any, Res any](w *Wrapper, path string, handler func(*gin.Context, *Req) (*Res, error), middleware ...gin.HandlerFunc) {
-	register(w, http.MethodGet, path, handler, middleware...)
+// --- Bind Helper ---
+
+// Bind validates and binds the request into the given struct.
+// Automatically detects the HTTP method:
+//   - GET, DELETE → binds from query params
+//   - POST, PUT, PATCH → binds from JSON body
+//
+// Returns true on success, false on failure (error response is auto-sent).
+func Bind(c *gin.Context, req any) bool {
+	var err error
+
+	switch c.Request.Method {
+	case http.MethodGet, http.MethodDelete:
+		err = c.ShouldBindQuery(req)
+	default:
+		err = c.ShouldBindJSON(req)
+	}
+
+	if err != nil {
+		statusCode, response := utils.HandleError(err)
+		c.JSON(statusCode, response)
+		return false
+	}
+	return true
 }
 
-func Post[Req any, Res any](w *Wrapper, path string, handler func(*gin.Context, *Req) (*Res, error), middleware ...gin.HandlerFunc) {
-	register(w, http.MethodPost, path, handler, middleware...)
+// --- Route Registration ---
+
+func (w *Wrapper) handle(method, path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+	ginPath := toGinPath(path)
+
+	w.Routes = append(w.Routes, RouteMeta{
+		Method: method,
+		Path:   path,
+		Tag:    deriveTag(path),
+	})
+
+	handlers := make([]gin.HandlerFunc, 0, len(middleware)+1)
+	handlers = append(handlers, middleware...)
+	handlers = append(handlers, handler)
+	w.Engine.Handle(method, ginPath, handlers...)
+
+	return &RouteBuilder{wrapper: w, index: len(w.Routes) - 1}
 }
 
-func Put[Req any, Res any](w *Wrapper, path string, handler func(*gin.Context, *Req) (*Res, error), middleware ...gin.HandlerFunc) {
-	register(w, http.MethodPut, path, handler, middleware...)
+func (w *Wrapper) GET(path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+	return w.handle(http.MethodGet, path, handler, middleware...)
 }
 
-func Patch[Req any, Res any](w *Wrapper, path string, handler func(*gin.Context, *Req) (*Res, error), middleware ...gin.HandlerFunc) {
-	register(w, http.MethodPatch, path, handler, middleware...)
+func (w *Wrapper) POST(path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+	return w.handle(http.MethodPost, path, handler, middleware...)
 }
 
-func Delete[Req any, Res any](w *Wrapper, path string, handler func(*gin.Context, *Req) (*Res, error), middleware ...gin.HandlerFunc) {
-	register(w, http.MethodDelete, path, handler, middleware...)
+func (w *Wrapper) PUT(path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+	return w.handle(http.MethodPut, path, handler, middleware...)
+}
+
+func (w *Wrapper) PATCH(path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+	return w.handle(http.MethodPatch, path, handler, middleware...)
+}
+
+func (w *Wrapper) DELETE(path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+	return w.handle(http.MethodDelete, path, handler, middleware...)
+}
+
+// --- RouteBuilder Chainable Methods ---
+
+// Body sets the request body schema type for Swagger documentation.
+func (rb *RouteBuilder) Body(schema any) *RouteBuilder {
+	rb.wrapper.Routes[rb.index].BodyType = reflect.TypeOf(schema)
+	return rb
+}
+
+// Response sets the response schema type for Swagger documentation.
+func (rb *RouteBuilder) Response(schema any) *RouteBuilder {
+	rb.wrapper.Routes[rb.index].ResponseType = reflect.TypeOf(schema)
+	return rb
+}
+
+// --- Helpers ---
+
+func toGinPath(path string) string {
+	ginPath := strings.ReplaceAll(path, "{", ":")
+	return strings.ReplaceAll(ginPath, "}", "")
 }
 
 func deriveTag(path string) string {
@@ -55,55 +131,25 @@ func deriveTag(path string) string {
 	return strings.Title(trimmed)
 }
 
-func register[Req any, Res any](w *Wrapper, method, path string, handler func(*gin.Context, *Req) (*Res, error), middleware ...gin.HandlerFunc) {
-	w.Routes = append(w.Routes, RouteMeta{
-		Method: method,
-		Path:   path,
-		Tag:    deriveTag(path),
-		Input:  reflect.TypeOf(*new(Req)),
-		Output: reflect.TypeOf(*new(Res)),
-	})
+var paramPattern = regexp.MustCompile(`\{(\w+)\}`)
 
-	ginPath := strings.ReplaceAll(path, "{", ":")
-	ginPath = strings.ReplaceAll(ginPath, "}", "")
+func extractParamNames(path string) []string {
+	matches := paramPattern.FindAllStringSubmatch(path, -1)
+	names := make([]string, 0, len(matches))
+	for _, m := range matches {
+		names = append(names, m[1])
+	}
+	return names
+}
 
-	hasUriParams := strings.Contains(path, "{")
+// --- Middleware ---
 
-	handlers := make([]gin.HandlerFunc, 0, len(middleware)+1)
-	handlers = append(handlers, middleware...)
-	handlers = append(handlers, func(c *gin.Context) {
-		req := new(Req)
+func TimeoutMiddleware(timeout time.Duration) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
+		defer cancel()
 
-		if hasUriParams {
-			if err := c.ShouldBindUri(req); err != nil {
-				statusCode, response := utils.HandleError(err)
-				c.JSON(statusCode, response)
-				return
-			}
-		}
-
-		if method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch {
-			if err := c.ShouldBindJSON(req); err != nil {
-				statusCode, response := utils.HandleError(err)
-				c.JSON(statusCode, response)
-				return
-			}
-		}
-
-		// 3. Business logic invocation
-		res, err := handler(c, req)
-		if err != nil {
-			statusCode, response := utils.HandleError(err)
-			c.JSON(statusCode, response)
-			return
-		}
-
-		if res != nil {
-			c.JSON(http.StatusOK, utils.NewApiResponse(http.StatusOK, res, "Success"))
-		} else {
-			c.JSON(http.StatusOK, utils.NewApiResponse[*Res](http.StatusOK, nil, "Success"))
-		}
-	})
-
-	w.Engine.Handle(method, ginPath, handlers...)
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	}
 }

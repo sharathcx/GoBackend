@@ -18,6 +18,7 @@ type VarsStruct struct {
 	MONGO_URI     string
 	DATABASE_NAME string
 	PORT          string
+	JWT_SECRET    string
 }
 
 var Vars VarsStruct
@@ -34,5 +35,6 @@ func init() {
 		MONGO_URI:     os.Getenv("MONGO_URI"),
 		DATABASE_NAME: os.Getenv("DATABASE_NAME"),
 		PORT:          port,
+		JWT_SECRET:    os.Getenv("JWT_SECRET"),
 	}
 }

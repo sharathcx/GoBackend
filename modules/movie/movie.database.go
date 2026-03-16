@@ -2,9 +2,7 @@ package movie
 
 import (
 	"context"
-	"time"
 
-	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"GoBackend/database"
@@ -12,10 +10,7 @@ import (
 
 var movieCollection = database.OpenCollection("movies")
 
-func GetMovies(c *gin.Context, req *GetMoviesPayloadSchema) (*[]MovieSchema, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
-	defer cancel()
-
+func GetMovies(ctx context.Context, req *GetMoviesPayloadSchema) (*[]MovieSchema, error) {
 	var movies []MovieSchema
 
 	cursor, err := movieCollection.Find(ctx, bson.M{})
@@ -31,13 +26,10 @@ func GetMovies(c *gin.Context, req *GetMoviesPayloadSchema) (*[]MovieSchema, err
 	return &movies, nil
 }
 
-func GetMovie(c *gin.Context, req *GetMoviePayloadSchema) (*MovieSchema, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
-	defer cancel()
-
+func GetMovie(ctx context.Context, movieID string) (*MovieSchema, error) {
 	var movie MovieSchema
 
-	err := movieCollection.FindOne(ctx, bson.M{"movie_id": req.MovieID}).Decode(&movie)
+	err := movieCollection.FindOne(ctx, bson.M{"movie_id": movieID}).Decode(&movie)
 	if err != nil {
 		return nil, err
 	}
@@ -45,9 +37,7 @@ func GetMovie(c *gin.Context, req *GetMoviePayloadSchema) (*MovieSchema, error) 
 	return &movie, nil
 }
 
-func AddMovie(c *gin.Context, movie *MovieSchema) (*MovieSchema, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
-	defer cancel()
+func AddMovie(ctx context.Context, movie *MovieSchema) (*MovieSchema, error) {
 
 	_, err := movieCollection.InsertOne(ctx, movie)
 	if err != nil {
@@ -56,5 +46,3 @@ func AddMovie(c *gin.Context, movie *MovieSchema) (*MovieSchema, error) {
 
 	return movie, nil
 }
-
-

@@ -70,7 +70,12 @@ func BuildOpenAPI(routes []RouteMeta) map[string]interface{} {
 					"description": "Success",
 					"content": map[string]interface{}{
 						"application/json": map[string]interface{}{
-							"schema": buildSchema(route.Output),
+							"schema": func() map[string]interface{} {
+								if route.ResponseType == nil {
+									return map[string]interface{}{"type": "object"}
+								}
+								return buildSchema(route.ResponseType)
+							}(),
 						},
 					},
 				},
@@ -78,22 +83,26 @@ func BuildOpenAPI(routes []RouteMeta) map[string]interface{} {
 			},
 		}
 
+		// Path params from route path pattern
 		params := []interface{}{}
-		if route.Input != nil && route.Input.Kind() == reflect.Struct {
-			for i := 0; i < route.Input.NumField(); i++ {
-				field := route.Input.Field(i)
-				uriTag := field.Tag.Get("uri")
+		pathParamNames := extractParamNames(route.Path)
+		for _, name := range pathParamNames {
+			params = append(params, map[string]interface{}{
+				"name":     name,
+				"in":       "path",
+				"required": true,
+				"schema":   map[string]string{"type": "string"},
+			})
+		}
+
+		// Query params from BodyType's `form` tags (for GET requests)
+		if route.BodyType != nil && route.BodyType.Kind() == reflect.Struct {
+			for i := 0; i < route.BodyType.NumField(); i++ {
+				field := route.BodyType.Field(i)
 				formTag := field.Tag.Get("form")
 				required := strings.Contains(field.Tag.Get("binding"), "required")
 
-				if uriTag != "" {
-					params = append(params, map[string]interface{}{
-						"name":     uriTag,
-						"in":       "path",
-						"required": true,
-						"schema":   map[string]string{"type": typeToOAS(field.Type.Kind())},
-					})
-				} else if formTag != "" && field.Tag.Get("json") == "" {
+				if formTag != "" {
 					params = append(params, map[string]interface{}{
 						"name":     formTag,
 						"in":       "query",
@@ -102,25 +111,25 @@ func BuildOpenAPI(routes []RouteMeta) map[string]interface{} {
 					})
 				}
 			}
-
-			if route.Method == "POST" || route.Method == "PUT" || route.Method == "PATCH" {
-				schema := buildSchema(route.Input)
-				// Ensure it's not totally empty to avoid UI errors, or only add if properties exist.
-				if props, ok := schema["properties"]; ok && len(props.(map[string]interface{})) > 0 {
-					methodObj["requestBody"] = map[string]interface{}{
-						"required": true,
-						"content": map[string]interface{}{
-							"application/json": map[string]interface{}{
-								"schema": schema,
-							},
-						},
-					}
-				}
-			}
 		}
 
 		if len(params) > 0 {
 			methodObj["parameters"] = params
+		}
+
+		// Request body for write methods
+		if route.BodyType != nil && (route.Method == "POST" || route.Method == "PUT" || route.Method == "PATCH") {
+			schema := buildSchema(route.BodyType)
+			if props, ok := schema["properties"]; ok && len(props.(map[string]interface{})) > 0 {
+				methodObj["requestBody"] = map[string]interface{}{
+					"required": true,
+					"content": map[string]interface{}{
+						"application/json": map[string]interface{}{
+							"schema": schema,
+						},
+					},
+				}
+			}
 		}
 
 		pathItem := pathObj[swaggerPath].(map[string]interface{})
