@@ -48,7 +48,7 @@ func BuildOpenAPI(routes []RouteMeta) map[string]interface{} {
 	docs := map[string]interface{}{
 		"openapi": "3.0.3",
 		"info": map[string]interface{}{
-			"title":   "MagicStream Auto-Generated API",
+			"title":   "Auto-Generated API",
 			"version": "1.0.0",
 		},
 		"paths": map[string]interface{}{},

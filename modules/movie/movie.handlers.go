@@ -11,14 +11,9 @@ import (
 func GetMoviesHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	var req GetMoviesPayloadSchema
-	if err := c.ShouldBindQuery(&req); err != nil {
-		statusCode, response := utils.HandleError(err)
-		c.JSON(statusCode, response)
-		return
-	}
+	req := fastapify.Req[GetMoviesPayloadSchema](c)
 
-	movies, err := GetMovies(ctx, &req)
+	movies, err := GetMovies(ctx, req)
 	if err != nil {
 		statusCode, response := utils.HandleError(utils.NewApiError(500, err.Error(), utils.ErrInternalError, nil))
 		c.JSON(statusCode, response)
@@ -45,10 +40,7 @@ func GetMovieHandler(c *gin.Context) {
 func AddMovieHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	var req AddMoviePayloadSchema
-	if !fastapify.Bind(c, &req) {
-		return
-	}
+	req := fastapify.Req[AddMoviePayloadSchema](c)
 
 	var movie MovieSchema
 	movie.MovieID = utils.InvokeUID("MOV", 4)

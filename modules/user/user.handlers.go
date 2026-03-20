@@ -27,12 +27,9 @@ func UpdateUserHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.Param("user_id")
 
-	var req UpdateUserPayloadSchema
-	if !fastapify.Bind(c, &req) {
-		return
-	}
+	req := fastapify.Req[UpdateUserPayloadSchema](c)
 
-	user, err := UpdateUser(ctx, userID, &req)
+	user, err := UpdateUser(ctx, userID, req)
 	if err != nil {
 		statusCode, response := utils.HandleError(err)
 		c.JSON(statusCode, response)
@@ -45,10 +42,7 @@ func UpdateUserHandler(c *gin.Context) {
 func RegisterHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	var req RegisterPayloadSchema
-	if !fastapify.Bind(c, &req) {
-		return
-	}
+	req := fastapify.Req[RegisterPayloadSchema](c)
 
 	hashedPassword, err := HashPassword(req.Password)
 	if err != nil {

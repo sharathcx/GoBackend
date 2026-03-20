@@ -39,15 +39,40 @@ func New(r *gin.Engine) *Wrapper {
 
 // --- Bind Helper ---
 
-// Bind validates and binds the request into the given struct.
-// Automatically detects the HTTP method:
-//   - GET, DELETE → binds from query params
-//   - POST, PUT, PATCH → binds from JSON body
-//
-// Returns true on success, false on failure (error response is auto-sent).
-func Bind(c *gin.Context, req any) bool {
-	var err error
+// Req retrieves the automatically bound and validated request data from the context.
+func Req[T any](c *gin.Context) *T {
+	val, exists := c.Get("fastapify_body")
+	if !exists {
+		return new(T)
+	}
+	return val.(*T)
+}
 
+// Bind validates and binds the request into the given struct.
+// Automatically:
+//  1. Binds URI parameters (and makes them immutable)
+//  2. Detects HTTP method for Body vs Query binding
+//  3. Sends 400 error response on failure
+//
+// Returns true on success, false on failure.
+func Bind(c *gin.Context, req any) bool {
+	// Step 1: Bind URI params and save their values for protection
+	uriValues := make(map[int]reflect.Value)
+	reqVal := reflect.ValueOf(req).Elem()
+	if reqVal.Kind() == reflect.Struct {
+		_ = c.ShouldBindUri(req)
+
+		// Snapshot URI-tagged fields
+		reqType := reqVal.Type()
+		for i := 0; i < reqType.NumField(); i++ {
+			if reqType.Field(i).Tag.Get("uri") != "" {
+				uriValues[i] = reflect.ValueOf(reqVal.Field(i).Interface())
+			}
+		}
+	}
+
+	// Step 2: Bind Body or Query
+	var err error
 	switch c.Request.Method {
 	case http.MethodGet, http.MethodDelete:
 		err = c.ShouldBindQuery(req)
@@ -55,11 +80,17 @@ func Bind(c *gin.Context, req any) bool {
 		err = c.ShouldBindJSON(req)
 	}
 
-	if err != nil {
+	if err != nil && err.Error() != "EOF" {
 		statusCode, response := utils.HandleError(err)
 		c.JSON(statusCode, response)
 		return false
 	}
+
+	// Step 3: Restore URI values (Protection against body override)
+	for i, val := range uriValues {
+		reqVal.Field(i).Set(val)
+	}
+
 	return true
 }
 
@@ -68,18 +99,34 @@ func Bind(c *gin.Context, req any) bool {
 func (w *Wrapper) handle(method, path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
 	ginPath := toGinPath(path)
 
+	routeIdx := len(w.Routes)
 	w.Routes = append(w.Routes, RouteMeta{
 		Method: method,
 		Path:   path,
 		Tag:    deriveTag(path),
 	})
+	meta := &w.Routes[routeIdx]
 
-	handlers := make([]gin.HandlerFunc, 0, len(middleware)+1)
+	// Automatic Validation Middleware
+	autoValidator := func(c *gin.Context) {
+		if meta.BodyType != nil {
+			req := reflect.New(meta.BodyType).Interface()
+			if !Bind(c, req) {
+				c.Abort()
+				return
+			}
+			c.Set("fastapify_body", req)
+		}
+		c.Next()
+	}
+
+	handlers := make([]gin.HandlerFunc, 0, len(middleware)+2)
 	handlers = append(handlers, middleware...)
+	handlers = append(handlers, autoValidator)
 	handlers = append(handlers, handler)
 	w.Engine.Handle(method, ginPath, handlers...)
 
-	return &RouteBuilder{wrapper: w, index: len(w.Routes) - 1}
+	return &RouteBuilder{wrapper: w, index: routeIdx}
 }
 
 func (w *Wrapper) GET(path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
