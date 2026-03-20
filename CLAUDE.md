@@ -15,33 +15,64 @@ No tests exist yet. No Makefile or Dockerfile.
 
 ## Architecture
 
-This is a Go REST API using **Gin** with **MongoDB**, organized by domain modules.
+Go REST API using **Gin** + **MongoDB**, organized by domain modules. `fastapify/` wraps Gin with automatic OpenAPI generation, request binding, and URI param protection.
 
-### Fastapify (`fastapify/`)
+## Module Rules (`modules/<domain>/`)
 
-Custom wrapper around Gin that provides:
-- **Automatic OpenAPI 3.0.3 spec generation** from Go struct reflection (no schema files needed)
-- **Type-safe request binding** via generics: `Req[T](c)` retrieves validated/bound request data
-- **Route builder pattern**: `api.POST("/path", handler).Body(Schema{}).Response(ResponseType{})`
-- **URI parameter protection**: prevents body fields from overriding URI params
-- Serves Swagger UI at `/docs` and spec at `/openapi.json`
+Each module has these files. Register routes in `main.go` via `<domain>.RegisterRoutes(api)`.
 
-### Module Pattern (`modules/<domain>/`)
+### Routes (`<domain>.routes.go`)
+- Single exported function: `RegisterRoutes(api *fastapify.Wrapper)`
+- Use `api.Group("/prefix")` to avoid repeating the base path
+- Chain `.Params(ParamsSchema{})`, `.Body(PayloadSchema{})`, `.Response(DomainSchema{})` for OpenAPI docs
+- URI params use `{param_name}` syntax
+- Middleware passed as extra args: `group.GET("/path", handler, middleware.AuthMiddleware())`
 
-Each domain module (user, movie) contains four files following a strict naming convention:
-- `<domain>.routes.go` — route registration via fastapify
-- `<domain>.handlers.go` — HTTP handlers using `Req[T]()` for typed request access
-- `<domain>.schemas.go` — request/response structs with `json`, `bson`, and `binding` tags
-- `<domain>.database.go` — MongoDB CRUD operations with context support
+### Handlers (`<domain>.handlers.go`)
+- Signature: `func XxxHandler(c *gin.Context) any` — never call `c.JSON()` directly
+- Return `utils.NewApiResponse(statusCode, data, message)` for success
+- Return database errors as-is (they are already `*utils.ApiError`): `return err`
+- For handler-level errors use shorthand constructors: `utils.InternalError("msg")`, `utils.Unauthorized("msg")`, etc.
+- Get validated body via `fastapify.Req[PayloadSchema](c)`, URI params via `fastapify.Params[ParamsSchema](c)`
+- Pass `c.Request.Context()` to all database calls
 
-To add a new module: create a new directory under `modules/`, follow the four-file pattern, and register routes in `main.go`.
+### Schemas (`<domain>.schemas.go`)
+- **DB model**: `<Domain>Schema` (e.g. `UserSchema`, `MovieSchema`) — carries `bson` + `json` tags
+- **Request payloads**: `<Action><Domain>PayloadSchema` (e.g. `RegisterPayloadSchema`, `UpdateUserPayloadSchema`)
+  - Create: fields use `binding:"required,..."`
+  - Update: fields use `binding:"omitempty,..."` and `bson:"field,omitempty"` (enables partial `$set`)
+  - GET query: use `form` tag instead of `json`
+- **Embedded value objects**: `<Name>Schema` (e.g. `GenreSchema`, `RankingSchema`) — nested with `binding:"required,dive"` or `binding:"omitempty,dive"`
 
-### Supporting Packages
+### Database (`<domain>.database.go`)
+- Package-level collection: `var xxxCollection = database.OpenCollection("name")`
+- All functions take `context.Context` as first param, return `(*DomainSchema, *utils.ApiError)`
+- Use semantic error constructors: `utils.NotFound("not found")`, `utils.Conflict("already exists")`, `utils.InternalError(err.Error())`
+- Updates use `FindOneAndUpdate` with `options.After`; partial updates work via omitempty bson tags
+
+### Utils (optional: `<domain>.utils.go`)
+- Domain-specific helpers (e.g. password hashing) — only create when needed
+
+## Supporting Packages
 
 - `database/` — MongoDB client init (via `init()`) and `OpenCollection()` helper
 - `globals/` — Env var loading via godotenv into `globals.Vars` singleton
-- `utils/` — Standardized API responses (`ApiResponse[T]`, `ApiError`) and UID generation (`GenerateUID("PREFIX")`)
+- `utils/` — `ApiResponse[T]`, `ApiError`, `HandleError()`, `InvokeUID(prefix, length)`, error code constants
+- `fastapify/` — `HandlerFunc = func(c *gin.Context) any`, auto-validation, `Group`, `Params[T]`, `Req[T]`, OpenAPI gen, Scalar docs at `/docs`
+- `middleware/auth/` — `AuthMiddleware()`, `GenerateJWT()`, `ValidateToken()`, `SignedDetailsSchema`
 
-### Response Format
+## Error Handling
 
-All endpoints return a standardized JSON envelope: `{statusCode, data, message, success, code}`. Use `utils.Response()` and `utils.Error()` helpers.
+Standardized `*utils.ApiError` flows through all layers:
+
+| Layer | Returns | Error constructors |
+|-------|---------|-------------------|
+| **Database** | `(*Schema, *utils.ApiError)` | `utils.NotFound()`, `utils.Conflict()`, `utils.InternalError()` |
+| **Handler** | `return err` (passthrough from DB) | `utils.Unauthorized()`, `utils.InternalError()` for handler-only errors |
+| **Middleware** | `utils.HandleError(utils.Unauthorized(...))` → writes JSON + aborts | |
+
+Shorthand constructors: `NotFound`, `BadRequest`, `Unauthorized`, `Forbidden`, `Conflict`, `InternalError` — each sets correct HTTP status + error code.
+
+## Response Format
+
+All endpoints return: `{statusCode, data, message, success, code}`. Fastapify auto-serializes: `*ApiError` routes through `HandleError()`, anything else writes as `200 OK`.

@@ -5,14 +5,26 @@ import (
 )
 
 func RegisterRoutes(api *fastapify.Wrapper) {
-	api.GET("/users/{user_id}", GetUserHandler).
-		Response(User{})
+	users := api.Group("/users")
 
-	api.PATCH("/users/{user_id}", UpdateUserHandler).
+	users.GET("/{user_id}", GetUserHandler).
+		Params(UserParamsSchema{}).
+		Response(UserSchema{})
+
+	users.PATCH("/{user_id}", UpdateUserHandler).
+		Params(UserParamsSchema{}).
 		Body(UpdateUserPayloadSchema{}).
-		Response(User{})
+		Response(UserSchema{})
 
-	api.POST("/users", RegisterHandler).
+	users.POST("", RegisterHandler).
 		Body(RegisterPayloadSchema{}).
-		Response(User{})
+		Response(UserSchema{})
+
+	users.DELETE("/{user_id}", DeleteUserHandler).
+		Params(UserParamsSchema{}).
+		Response(UserSchema{})
+
+	users.POST("/login", LoginUserHandler).
+		Body(UserLoginPayloadSchema{}).
+		Response(UserResponseSchema{})
 }

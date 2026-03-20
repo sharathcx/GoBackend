@@ -4,7 +4,6 @@ import (
 	"math/rand/v2"
 )
 
-
 func InvokeUID(prefix string, length int) string {
 	if prefix == "" {
 		prefix = "uid"

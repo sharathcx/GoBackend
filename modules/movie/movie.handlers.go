@@ -8,36 +8,32 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func GetMoviesHandler(c *gin.Context) {
+func GetMoviesHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
 
 	req := fastapify.Req[GetMoviesPayloadSchema](c)
 
 	movies, err := GetMovies(ctx, req)
 	if err != nil {
-		statusCode, response := utils.HandleError(utils.NewApiError(500, err.Error(), utils.ErrInternalError, nil))
-		c.JSON(statusCode, response)
-		return
+		return err
 	}
 
-	c.JSON(http.StatusOK, utils.NewApiResponse(http.StatusOK, movies, "Movies fetched successfully"))
+	return utils.NewApiResponse(http.StatusOK, movies, "Movies fetched successfully")
 }
 
-func GetMovieHandler(c *gin.Context) {
+func GetMovieHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
-	movieID := c.Param("movie_id")
+	params := fastapify.Params[MovieParamsSchema](c)
 
-	movie, err := GetMovie(ctx, movieID)
+	movie, err := GetMovie(ctx, params.MovieID)
 	if err != nil {
-		statusCode, response := utils.HandleError(utils.NewApiError(500, err.Error(), utils.ErrInternalError, nil))
-		c.JSON(statusCode, response)
-		return
+		return err
 	}
 
-	c.JSON(http.StatusOK, utils.NewApiResponse(http.StatusOK, movie, "Movie fetched successfully"))
+	return utils.NewApiResponse(http.StatusOK, movie, "Movie fetched successfully")
 }
 
-func AddMovieHandler(c *gin.Context) {
+func AddMovieHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
 
 	req := fastapify.Req[AddMoviePayloadSchema](c)
@@ -53,10 +49,20 @@ func AddMovieHandler(c *gin.Context) {
 
 	newMovie, err := AddMovie(ctx, &movie)
 	if err != nil {
-		statusCode, response := utils.HandleError(utils.NewApiError(500, err.Error(), utils.ErrInternalError, nil))
-		c.JSON(statusCode, response)
-		return
+		return err
 	}
 
-	c.JSON(http.StatusOK, utils.NewApiResponse(http.StatusOK, newMovie, "Movie added successfully"))
+	return utils.NewApiResponse(http.StatusOK, newMovie, "Movie added successfully")
+}
+
+func DeleteMovieHandler(c *gin.Context) any {
+	ctx := c.Request.Context()
+	params := fastapify.Params[MovieParamsSchema](c)
+
+	movie, err := DeleteMovie(ctx, params.MovieID)
+	if err != nil {
+		return err
+	}
+
+	return utils.NewApiResponse(http.StatusOK, movie, "Movie deleted successfully")
 }

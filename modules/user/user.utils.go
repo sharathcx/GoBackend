@@ -1,6 +1,6 @@
 package user
 
-import(
+import (
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -10,5 +10,8 @@ func HashPassword(password string) (string, error) {
 		return "", err
 	}
 	return string(hashedPassword), nil
+}
 
+func VerifyPassword(password string, hashedPassword string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }

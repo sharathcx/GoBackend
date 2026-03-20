@@ -2,16 +2,24 @@ package movie
 
 import (
 	"GoBackend/fastapify"
+	"GoBackend/middleware/auth"
 )
 
 func RegisterRoutes(api *fastapify.Wrapper) {
-	api.GET("/movies", GetMoviesHandler).
+	movies := api.Group("/movies")
+
+	movies.GET("", GetMoviesHandler).
 		Response([]MovieSchema{})
 
-	api.GET("/movies/{movie_id}", GetMovieHandler).
+	movies.GET("/{movie_id}", GetMovieHandler, auth.AuthMiddleware()).
+		Params(MovieParamsSchema{}).
 		Response(MovieSchema{})
 
-	api.POST("/movies", AddMovieHandler).
+	movies.POST("", AddMovieHandler).
 		Body(AddMoviePayloadSchema{}).
+		Response(MovieSchema{})
+
+	movies.DELETE("/{movie_id}", DeleteMovieHandler).
+		Params(MovieParamsSchema{}).
 		Response(MovieSchema{})
 }

@@ -5,7 +5,11 @@ import (
 	"time"
 )
 
-type User struct {
+type UserParamsSchema struct {
+	UserID string `uri:"user_id" binding:"required,min=1"`
+}
+
+type UserSchema struct {
 	UserID          string              `bson:"user_id" json:"user_id"`
 	FirstName       string              `bson:"first_name" json:"first_name"`
 	LastName        string              `bson:"last_name" json:"last_name"`
@@ -26,6 +30,7 @@ type UpdateUserPayloadSchema struct {
 	Password        string              `bson:"password,omitempty" json:"password" binding:"omitempty,min=2,max=100"`
 	Role            string              `bson:"role,omitempty" json:"role" binding:"omitempty,oneof=ADMIN USER"`
 	FavouriteGenres []movie.GenreSchema `bson:"favourite_genre,omitempty" json:"favourite_genre" binding:"omitempty,dive"`
+	UpdatedAt       time.Time           `bson:"updated_at,omitempty" json:"updated_at" binding:"omitempty"`
 }
 
 type RegisterPayloadSchema struct {
@@ -36,3 +41,21 @@ type RegisterPayloadSchema struct {
 	Role            string              `json:"role" binding:"required,oneof=ADMIN USER"`
 	FavouriteGenres []movie.GenreSchema `json:"favourite_genre" binding:"required,dive"`
 }
+
+type UserLoginPayloadSchema struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=2,max=100"`
+}
+
+// this is called data transfer object or dto usually contains only the fields that are needed for the response
+type UserResponseSchema struct {
+	UserID          string              `bson:"user_id" json:"user_id"`
+	FirstName       string              `bson:"first_name" json:"first_name"`
+	LastName        string              `bson:"last_name" json:"last_name"`
+	Email           string              `bson:"email" json:"email"`
+	Role            string              `bson:"role" json:"role"`
+	FavouriteGenres []movie.GenreSchema `bson:"favourite_genre" json:"favourite_genre"`
+	AccessToken     string              `bson:"access_token" json:"access_token"`
+	RefreshToken    string              `bson:"refresh_token" json:"refresh_token"`
+}
+

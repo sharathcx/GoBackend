@@ -2,6 +2,7 @@ package user
 
 import (
 	"GoBackend/fastapify"
+	"GoBackend/middleware/auth"
 	"GoBackend/utils"
 	"net/http"
 	"time"
@@ -9,49 +10,43 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func GetUserHandler(c *gin.Context) {
+func GetUserHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
-	userID := c.Param("user_id")
+	params := fastapify.Params[UserParamsSchema](c)
 
-	user, err := GetUser(ctx, userID)
+	user, err := GetUser(ctx, params.UserID)
 	if err != nil {
-		statusCode, response := utils.HandleError(err)
-		c.JSON(statusCode, response)
-		return
+		return err
 	}
 
-	c.JSON(http.StatusOK, utils.NewApiResponse(http.StatusOK, user, "User fetched successfully"))
+	return utils.NewApiResponse(http.StatusOK, user, "User fetched successfully")
 }
 
-func UpdateUserHandler(c *gin.Context) {
+func UpdateUserHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
-	userID := c.Param("user_id")
+	params := fastapify.Params[UserParamsSchema](c)
 
 	req := fastapify.Req[UpdateUserPayloadSchema](c)
-
-	user, err := UpdateUser(ctx, userID, req)
+	req.UpdatedAt = time.Now()
+	user, err := UpdateUser(ctx, params.UserID, req)
 	if err != nil {
-		statusCode, response := utils.HandleError(err)
-		c.JSON(statusCode, response)
-		return
+		return err
 	}
 
-	c.JSON(http.StatusOK, utils.NewApiResponse(http.StatusOK, user, "User updated successfully"))
+	return utils.NewApiResponse(http.StatusOK, user, "User updated successfully")
 }
 
-func RegisterHandler(c *gin.Context) {
+func RegisterHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
 
 	req := fastapify.Req[RegisterPayloadSchema](c)
 
-	hashedPassword, err := HashPassword(req.Password)
-	if err != nil {
-		statusCode, response := utils.HandleError(utils.NewApiError(500, err.Error(), utils.ErrInternalError, nil))
-		c.JSON(statusCode, response)
-		return
+	hashedPassword, hashErr := HashPassword(req.Password)
+	if hashErr != nil {
+		return utils.InternalError(hashErr.Error())
 	}
 
-	var user User
+	var user UserSchema
 	user.UserID = utils.InvokeUID("USR", 4)
 	user.FirstName = req.FirstName
 	user.LastName = req.LastName
@@ -64,10 +59,58 @@ func RegisterHandler(c *gin.Context) {
 
 	newUser, err := InsertUser(ctx, &user)
 	if err != nil {
-		statusCode, response := utils.HandleError(utils.NewApiError(500, err.Error(), utils.ErrInternalError, nil))
-		c.JSON(statusCode, response)
-		return
+		return err
 	}
 
-	c.JSON(http.StatusOK, utils.NewApiResponse(http.StatusOK, newUser, "User registered successfully"))
+	return utils.NewApiResponse(http.StatusOK, newUser, "User registered successfully")
+}
+
+func DeleteUserHandler(c *gin.Context) any {
+	ctx := c.Request.Context()
+	params := fastapify.Params[UserParamsSchema](c)
+
+	user, err := DeleteUser(ctx, params.UserID)
+	if err != nil {
+		return err
+	}
+
+	return utils.NewApiResponse(http.StatusOK, user, "User deleted successfully")
+}
+
+func LoginUserHandler(c *gin.Context) any {
+	ctx := c.Request.Context()
+
+	req := fastapify.Req[UserLoginPayloadSchema](c)
+
+	foundUser, err := LoginUser(ctx, req)
+	if err != nil {
+		return err
+	}
+	verifyErr := VerifyPassword(req.Password, foundUser.Password)
+	if verifyErr != nil {
+		return utils.Unauthorized("invalid email or password")
+	}
+
+	accessToken, refreshToken, jwtErr := auth.GenerateJWT(foundUser.Email, foundUser.FirstName, foundUser.LastName, foundUser.Role, foundUser.UserID)
+	if jwtErr != nil {
+		return utils.InternalError(jwtErr.Error())
+	}
+
+	_, tokenErr := UpdateAllTokens(ctx, foundUser.UserID, accessToken, refreshToken)
+	if tokenErr != nil {
+		return tokenErr
+	}
+
+	response := UserResponseSchema{
+		UserID:          foundUser.UserID,
+		FirstName:       foundUser.FirstName,
+		LastName:        foundUser.LastName,
+		Email:           foundUser.Email,
+		Role:            foundUser.Role,
+		FavouriteGenres: foundUser.FavouriteGenres,
+		AccessToken:     accessToken,
+		RefreshToken:    refreshToken,
+	}
+
+	return utils.NewApiResponse(http.StatusOK, response, "User logged in successfully")
 }

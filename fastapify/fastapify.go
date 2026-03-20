@@ -15,6 +15,10 @@ import (
 
 // --- Core Types ---
 
+// HandlerFunc is the fastapify handler signature.
+// Return utils.ApiResponse[T] for success or *utils.ApiError for errors.
+type HandlerFunc func(c *gin.Context) any
+
 type Wrapper struct {
 	Engine *gin.Engine
 	Routes []RouteMeta
@@ -25,6 +29,7 @@ type RouteMeta struct {
 	Path         string
 	Tag          string
 	BodyType     reflect.Type
+	ParamsType   reflect.Type
 	ResponseType reflect.Type
 }
 
@@ -42,6 +47,15 @@ func New(r *gin.Engine) *Wrapper {
 // Req retrieves the automatically bound and validated request data from the context.
 func Req[T any](c *gin.Context) *T {
 	val, exists := c.Get("fastapify_body")
+	if !exists {
+		return new(T)
+	}
+	return val.(*T)
+}
+
+// Params retrieves the automatically bound and validated URI params from the context.
+func Params[T any](c *gin.Context) *T {
+	val, exists := c.Get("fastapify_params")
 	if !exists {
 		return new(T)
 	}
@@ -96,7 +110,7 @@ func Bind(c *gin.Context, req any) bool {
 
 // --- Route Registration ---
 
-func (w *Wrapper) handle(method, path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+func (w *Wrapper) handle(method, path string, handler HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
 	ginPath := toGinPath(path)
 
 	routeIdx := len(w.Routes)
@@ -109,6 +123,16 @@ func (w *Wrapper) handle(method, path string, handler gin.HandlerFunc, middlewar
 
 	// Automatic Validation Middleware
 	autoValidator := func(c *gin.Context) {
+		if meta.ParamsType != nil {
+			params := reflect.New(meta.ParamsType).Interface()
+			if err := c.ShouldBindUri(params); err != nil {
+				statusCode, response := utils.HandleError(err)
+				c.JSON(statusCode, response)
+				c.Abort()
+				return
+			}
+			c.Set("fastapify_params", params)
+		}
 		if meta.BodyType != nil {
 			req := reflect.New(meta.BodyType).Interface()
 			if !Bind(c, req) {
@@ -120,36 +144,60 @@ func (w *Wrapper) handle(method, path string, handler gin.HandlerFunc, middlewar
 		c.Next()
 	}
 
+	// Wraps HandlerFunc to automatically write the JSON response
+	ginHandler := func(c *gin.Context) {
+		result := handler(c)
+		if c.Writer.Written() {
+			return
+		}
+		if result == nil {
+			return
+		}
+		switch v := result.(type) {
+		case *utils.ApiError:
+			statusCode, response := utils.HandleError(v)
+			c.JSON(statusCode, response)
+		default:
+			c.JSON(http.StatusOK, result)
+		}
+	}
+
 	handlers := make([]gin.HandlerFunc, 0, len(middleware)+2)
 	handlers = append(handlers, middleware...)
 	handlers = append(handlers, autoValidator)
-	handlers = append(handlers, handler)
+	handlers = append(handlers, ginHandler)
 	w.Engine.Handle(method, ginPath, handlers...)
 
 	return &RouteBuilder{wrapper: w, index: routeIdx}
 }
 
-func (w *Wrapper) GET(path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+func (w *Wrapper) GET(path string, handler HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
 	return w.handle(http.MethodGet, path, handler, middleware...)
 }
 
-func (w *Wrapper) POST(path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+func (w *Wrapper) POST(path string, handler HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
 	return w.handle(http.MethodPost, path, handler, middleware...)
 }
 
-func (w *Wrapper) PUT(path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+func (w *Wrapper) PUT(path string, handler HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
 	return w.handle(http.MethodPut, path, handler, middleware...)
 }
 
-func (w *Wrapper) PATCH(path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+func (w *Wrapper) PATCH(path string, handler HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
 	return w.handle(http.MethodPatch, path, handler, middleware...)
 }
 
-func (w *Wrapper) DELETE(path string, handler gin.HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+func (w *Wrapper) DELETE(path string, handler HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
 	return w.handle(http.MethodDelete, path, handler, middleware...)
 }
 
 // --- RouteBuilder Chainable Methods ---
+
+// Params sets the URI params schema type for validation and Swagger documentation.
+func (rb *RouteBuilder) Params(schema any) *RouteBuilder {
+	rb.wrapper.Routes[rb.index].ParamsType = reflect.TypeOf(schema)
+	return rb
+}
 
 // Body sets the request body schema type for Swagger documentation.
 func (rb *RouteBuilder) Body(schema any) *RouteBuilder {
@@ -161,6 +209,37 @@ func (rb *RouteBuilder) Body(schema any) *RouteBuilder {
 func (rb *RouteBuilder) Response(schema any) *RouteBuilder {
 	rb.wrapper.Routes[rb.index].ResponseType = reflect.TypeOf(schema)
 	return rb
+}
+
+// --- Group ---
+
+type Group struct {
+	wrapper *Wrapper
+	prefix  string
+}
+
+func (w *Wrapper) Group(prefix string) *Group {
+	return &Group{wrapper: w, prefix: prefix}
+}
+
+func (g *Group) GET(path string, handler HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+	return g.wrapper.handle(http.MethodGet, g.prefix+path, handler, middleware...)
+}
+
+func (g *Group) POST(path string, handler HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+	return g.wrapper.handle(http.MethodPost, g.prefix+path, handler, middleware...)
+}
+
+func (g *Group) PUT(path string, handler HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+	return g.wrapper.handle(http.MethodPut, g.prefix+path, handler, middleware...)
+}
+
+func (g *Group) PATCH(path string, handler HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+	return g.wrapper.handle(http.MethodPatch, g.prefix+path, handler, middleware...)
+}
+
+func (g *Group) DELETE(path string, handler HandlerFunc, middleware ...gin.HandlerFunc) *RouteBuilder {
+	return g.wrapper.handle(http.MethodDelete, g.prefix+path, handler, middleware...)
 }
 
 // --- Helpers ---

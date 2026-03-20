@@ -16,26 +16,18 @@ func (w *Wrapper) SetupSwagger(jsonPath string) {
 
 	docsHTML := `
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fastapify API</title>
-    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.0.0/swagger-ui.css">
+    <style>
+        body { margin: 0; }
+    </style>
 </head>
 <body>
-    <div id="swagger-ui"></div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.0.0/swagger-ui-bundle.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.0.0/swagger-ui-standalone-preset.js"></script>
-    <script>
-    window.onload = function() {
-        const ui = SwaggerUIBundle({
-            url: "` + jsonPath + `",
-            dom_id: '#swagger-ui',
-            presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
-            layout: "StandaloneLayout"
-        })
-    }
-    </script>
+    <script id="api-reference" data-url="` + jsonPath + `" data-configuration='{"theme":"deepSpace","layout":"modern","hideModels":true}'></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
 </body>
 </html>`
 
@@ -52,6 +44,18 @@ func BuildOpenAPI(routes []RouteMeta) map[string]interface{} {
 			"version": "1.0.0",
 		},
 		"paths": map[string]interface{}{},
+		"components": map[string]interface{}{
+			"securitySchemes": map[string]interface{}{
+				"BearerAuth": map[string]interface{}{
+					"type":         "http",
+					"scheme":       "bearer",
+					"bearerFormat": "JWT",
+				},
+			},
+		},
+		"security": []map[string]interface{}{
+			{"BearerAuth": []string{}},
+		},
 	}
 
 	for _, route := range routes {
@@ -83,16 +87,33 @@ func BuildOpenAPI(routes []RouteMeta) map[string]interface{} {
 			},
 		}
 
-		// Path params from route path pattern
+		// Path params — use ParamsType schema if available, otherwise extract from path
 		params := []interface{}{}
-		pathParamNames := extractParamNames(route.Path)
-		for _, name := range pathParamNames {
-			params = append(params, map[string]interface{}{
-				"name":     name,
-				"in":       "path",
-				"required": true,
-				"schema":   map[string]string{"type": "string"},
-			})
+		if route.ParamsType != nil && route.ParamsType.Kind() == reflect.Struct {
+			for i := 0; i < route.ParamsType.NumField(); i++ {
+				field := route.ParamsType.Field(i)
+				uriTag := field.Tag.Get("uri")
+				if uriTag == "" {
+					continue
+				}
+				required := strings.Contains(field.Tag.Get("binding"), "required")
+				params = append(params, map[string]interface{}{
+					"name":     uriTag,
+					"in":       "path",
+					"required": required,
+					"schema":   map[string]string{"type": typeToOAS(field.Type.Kind())},
+				})
+			}
+		} else {
+			pathParamNames := extractParamNames(route.Path)
+			for _, name := range pathParamNames {
+				params = append(params, map[string]interface{}{
+					"name":     name,
+					"in":       "path",
+					"required": true,
+					"schema":   map[string]string{"type": "string"},
+				})
+			}
 		}
 
 		// Query params from BodyType's `form` tags (for GET requests)

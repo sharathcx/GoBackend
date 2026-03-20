@@ -10,6 +10,10 @@ type RankingSchema struct {
 	RankingName  string `bson:"ranking_name" json:"ranking_name" validate:"required"`
 }
 
+type MovieParamsSchema struct {
+	MovieID string `uri:"movie_id" binding:"required,min=1,max=100"`
+}
+
 type MovieSchema struct {
 	MovieID     string        `bson:"movie_id" json:"movie_id"`
 	Title       string        `bson:"title" json:"title"`
