@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"GoBackend/fastapify"
+	"GoBackend/globals"
 	"GoBackend/modules/movie"
 	"GoBackend/modules/user"
 
@@ -22,9 +23,9 @@ func main() {
 
 	api.SetupSwagger("/openapi.json")
 
-	fmt.Println("Swagger Docs available at: http://localhost:8000/docs")
+	fmt.Printf("Swagger Docs available at: http://localhost:%s/docs\n", globals.Vars.PORT)
 
-	if err := router.Run(":8000"); err != nil {
+	if err := router.Run(":" + globals.Vars.PORT); err != nil {
 		fmt.Println("Failed to start server", err)
 	}
 }
