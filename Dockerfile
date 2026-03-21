@@ -15,6 +15,6 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /app/gobackend .
 
-EXPOSE 8000
+EXPOSE 8080
 
 CMD ["./gobackend"]
