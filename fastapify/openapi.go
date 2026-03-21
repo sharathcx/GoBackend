@@ -26,7 +26,7 @@ func (w *Wrapper) SetupSwagger(jsonPath string) {
     </style>
 </head>
 <body>
-    <script id="api-reference" data-url="` + jsonPath + `" data-configuration='{"theme":"deepSpace","layout":"modern","hideModels":true}'></script>
+    <script id="api-reference" data-url="` + jsonPath + `" data-configuration='{"theme":"deepSpace","layout":"modern","hideModels":true,"ai":{"enabled":true}}'></script>
     <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
 </body>
 </html>`
