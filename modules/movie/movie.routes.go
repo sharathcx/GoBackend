@@ -15,11 +15,11 @@ func RegisterRoutes(api *fastapify.Wrapper) {
 		Params(MovieParamsSchema{}).
 		Response(MovieSchema{})
 
-	movies.POST("", AddMovieHandler).
+	movies.POST("", AddMovieHandler, auth.AuthMiddleware()).
 		Body(AddMoviePayloadSchema{}).
 		Response(MovieSchema{})
 
-	movies.DELETE("/{movie_id}", DeleteMovieHandler).
+	movies.DELETE("/{movie_id}", DeleteMovieHandler, auth.AuthMiddleware()).
 		Params(MovieParamsSchema{}).
 		Response(MovieSchema{})
 }
