@@ -115,11 +115,11 @@ func HandleError(err error) (int, any) {
 }
 
 type ApiResponse[T any] struct {
-	StatusCode int    `json:"statusCode"`
-	Data       T      `json:"data"`
-	Message    string `json:"message"`
-	Success    bool   `json:"success"`
-	Code       string `json:"code"`
+	StatusCode   int    `json:"statusCode"`
+	Data         T      `json:"data"`
+	Message      string `json:"message"`
+	Success      bool   `json:"success"`
+	Code         string `json:"code"`
 }
 
 func NewApiResponse[T any](statusCode int, data T, message string) ApiResponse[T] {

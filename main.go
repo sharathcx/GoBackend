@@ -6,9 +6,7 @@ import (
 
 	"GoBackend/fastapify"
 	"GoBackend/globals"
-	"GoBackend/modules/chat"
-	"GoBackend/modules/movie"
-	"GoBackend/modules/user"
+	"GoBackend/routes"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,9 +17,7 @@ func main() {
 
 	api := fastapify.New(router)
 
-	movie.RegisterRoutes(api)
-	user.RegisterRoutes(api)
-	chat.RegisterRoutes(api)
+	routes.RegisterRoutes(api)
 
 	api.SetupSwagger("/openapi.json")
 

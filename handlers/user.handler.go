@@ -1,8 +1,9 @@
-package user
+package handlers
 
 import (
+	"GoBackend/database"
 	"GoBackend/fastapify"
-	"GoBackend/middleware/auth"
+	"GoBackend/schemas"
 	"GoBackend/utils"
 	"net/http"
 	"time"
@@ -12,9 +13,9 @@ import (
 
 func GetUserHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
-	params := fastapify.Params[UserParamsSchema](c)
+	params := fastapify.Params[schemas.UserParamsSchema](c)
 
-	user, err := GetUser(ctx, params.UserID)
+	user, err := database.GetUser(ctx, params.UserID)
 	if err != nil {
 		return err
 	}
@@ -24,11 +25,11 @@ func GetUserHandler(c *gin.Context) any {
 
 func UpdateUserHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
-	params := fastapify.Params[UserParamsSchema](c)
+	params := fastapify.Params[schemas.UserParamsSchema](c)
 
-	req := fastapify.Req[UpdateUserPayloadSchema](c)
+	req := fastapify.Req[schemas.UpdateUserPayloadSchema](c)
 	req.UpdatedAt = time.Now()
-	user, err := UpdateUser(ctx, params.UserID, req)
+	user, err := database.UpdateUser(ctx, params.UserID, req)
 	if err != nil {
 		return err
 	}
@@ -39,14 +40,14 @@ func UpdateUserHandler(c *gin.Context) any {
 func RegisterHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
 
-	req := fastapify.Req[RegisterPayloadSchema](c)
+	req := fastapify.Req[schemas.RegisterPayloadSchema](c)
 
-	hashedPassword, hashErr := HashPassword(req.Password)
+	hashedPassword, hashErr := utils.HashPassword(req.Password)
 	if hashErr != nil {
 		return utils.InternalError(hashErr.Error())
 	}
 
-	var user UserSchema
+	var user schemas.UserSchema
 	user.UserID = utils.InvokeUID("USR", 4)
 	user.FirstName = req.FirstName
 	user.LastName = req.LastName
@@ -57,7 +58,7 @@ func RegisterHandler(c *gin.Context) any {
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
 
-	newUser, err := InsertUser(ctx, &user)
+	newUser, err := database.InsertUser(ctx, &user)
 	if err != nil {
 		return err
 	}
@@ -67,9 +68,9 @@ func RegisterHandler(c *gin.Context) any {
 
 func DeleteUserHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
-	params := fastapify.Params[UserParamsSchema](c)
+	params := fastapify.Params[schemas.UserParamsSchema](c)
 
-	user, err := DeleteUser(ctx, params.UserID)
+	user, err := database.DeleteUser(ctx, params.UserID)
 	if err != nil {
 		return err
 	}
@@ -80,28 +81,28 @@ func DeleteUserHandler(c *gin.Context) any {
 func LoginUserHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
 
-	req := fastapify.Req[UserLoginPayloadSchema](c)
+	req := fastapify.Req[schemas.UserLoginPayloadSchema](c)
 
-	foundUser, err := LoginUser(ctx, req)
+	foundUser, err := database.LoginUser(ctx, req)
 	if err != nil {
 		return err
 	}
-	verifyErr := VerifyPassword(req.Password, foundUser.Password)
+	verifyErr := utils.VerifyPassword(req.Password, foundUser.Password)
 	if verifyErr != nil {
 		return utils.Unauthorized("invalid email or password")
 	}
 
-	accessToken, refreshToken, jwtErr := auth.GenerateJWT(foundUser.Email, foundUser.FirstName, foundUser.LastName, foundUser.Role, foundUser.UserID)
+	accessToken, refreshToken, jwtErr := utils.GenerateJWT(foundUser.Email, foundUser.FirstName, foundUser.LastName, foundUser.Role, foundUser.UserID)
 	if jwtErr != nil {
 		return utils.InternalError(jwtErr.Error())
 	}
 
-	_, tokenErr := UpdateAllTokens(ctx, foundUser.UserID, accessToken, refreshToken)
+	_, tokenErr := database.UpdateAllTokens(ctx, foundUser.UserID, accessToken, refreshToken)
 	if tokenErr != nil {
 		return tokenErr
 	}
 
-	response := UserResponseSchema{
+	response := schemas.UserResponseSchema{
 		UserID:          foundUser.UserID,
 		FirstName:       foundUser.FirstName,
 		LastName:        foundUser.LastName,

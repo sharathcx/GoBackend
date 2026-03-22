@@ -144,7 +144,6 @@ func (w *Wrapper) handle(method, path string, handler HandlerFunc, middleware ..
 		c.Next()
 	}
 
-	// Wraps HandlerFunc to automatically write the JSON response
 	ginHandler := func(c *gin.Context) {
 		result := handler(c)
 		if c.Writer.Written() {

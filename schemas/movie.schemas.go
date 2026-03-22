@@ -1,4 +1,4 @@
-package movie
+package schemas
 
 type GenreSchema struct {
 	GenreId   int    `bson:"genre_id" json:"genre_id" validate:"required"`

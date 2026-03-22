@@ -1,17 +1,22 @@
-package movie
+package database
 
 import (
-	"GoBackend/database"
+	"GoBackend/schemas"
 	"GoBackend/utils"
 	"context"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-var movieCollection = database.OpenCollection("movies")
+var movieCollection *mongo.Collection
 
-func GetMovies(ctx context.Context, req *GetMoviesPayloadSchema) (*[]MovieSchema, *utils.ApiError) {
-	var movies []MovieSchema
+func init() {
+	movieCollection = OpenCollection("movies")
+}
+
+func GetMovies(ctx context.Context, req *schemas.GetMoviesPayloadSchema) (*[]schemas.MovieSchema, *utils.ApiError) {
+	var movies []schemas.MovieSchema
 
 	cursor, err := movieCollection.Find(ctx, bson.M{})
 	if err != nil {
@@ -26,8 +31,8 @@ func GetMovies(ctx context.Context, req *GetMoviesPayloadSchema) (*[]MovieSchema
 	return &movies, nil
 }
 
-func GetMovie(ctx context.Context, movieID string) (*MovieSchema, *utils.ApiError) {
-	var movie MovieSchema
+func GetMovie(ctx context.Context, movieID string) (*schemas.MovieSchema, *utils.ApiError) {
+	var movie schemas.MovieSchema
 
 	err := movieCollection.FindOne(ctx, bson.M{"movie_id": movieID}).Decode(&movie)
 	if err != nil {
@@ -37,7 +42,7 @@ func GetMovie(ctx context.Context, movieID string) (*MovieSchema, *utils.ApiErro
 	return &movie, nil
 }
 
-func AddMovie(ctx context.Context, movie *MovieSchema) (*MovieSchema, *utils.ApiError) {
+func AddMovie(ctx context.Context, movie *schemas.MovieSchema) (*schemas.MovieSchema, *utils.ApiError) {
 	_, err := movieCollection.InsertOne(ctx, movie)
 	if err != nil {
 		return nil, utils.InternalError(err.Error())
@@ -46,8 +51,8 @@ func AddMovie(ctx context.Context, movie *MovieSchema) (*MovieSchema, *utils.Api
 	return movie, nil
 }
 
-func DeleteMovie(ctx context.Context, movieID string) (*MovieSchema, *utils.ApiError) {
-	var movie MovieSchema
+func DeleteMovie(ctx context.Context, movieID string) (*schemas.MovieSchema, *utils.ApiError) {
+	var movie schemas.MovieSchema
 
 	err := movieCollection.FindOneAndDelete(ctx, bson.M{"movie_id": movieID}).Decode(&movie)
 	if err != nil {

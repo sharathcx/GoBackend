@@ -10,8 +10,9 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-func init() {
+var Client = connectMongo()
 
+func connectMongo() *mongo.Client {
 	mongoURI := globals.Vars.MONGO_URI
 
 	if mongoURI == "" {
@@ -27,10 +28,8 @@ func init() {
 		log.Fatal("Failed to connect to MongoDB", err)
 	}
 
-	Client = client
+	return client
 }
-
-var Client *mongo.Client
 
 func OpenCollection(collectionName string) *mongo.Collection {
 
@@ -39,8 +38,6 @@ func OpenCollection(collectionName string) *mongo.Collection {
 	if databaseName == "" {
 		log.Fatal("DATABASE_NAME not set")
 	}
-
-	fmt.Println("Database Name =", databaseName)
 
 	collection := Client.Database(databaseName).Collection(collectionName)
 

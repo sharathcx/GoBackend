@@ -1,7 +1,8 @@
-package auth
+package utils
 
 import (
 	"GoBackend/globals"
+	"GoBackend/schemas"
 	"errors"
 	"time"
 
@@ -9,22 +10,13 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type SignedDetailsSchema struct {
-	UserID    string `json:"user_id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	jwt.RegisteredClaims
-}
-
 var accessTokenSecret = globals.Vars.ACCESS_TOKEN_SECRET
 var refreshTokenSecret = globals.Vars.REFRESH_TOKEN_SECRET
 var accessTokenExpiryMinutes = globals.Vars.ACCESS_TOKEN_EXPIRY_MINUTES
 var refreshTokenExpiryMinutes = globals.Vars.REFRESH_TOKEN_EXPIRY_MINUTES
 
 func GenerateJWT(email, firstName, lastName, role, userID string) (string, string, error) {
-	accessTokenClaims := &SignedDetailsSchema{
+	accessTokenClaims := &schemas.SignedDetailsSchema{
 		UserID:    userID,
 		FirstName: firstName,
 		LastName:  lastName,
@@ -42,7 +34,7 @@ func GenerateJWT(email, firstName, lastName, role, userID string) (string, strin
 		return "", "", err
 	}
 
-	refreshTokenClaims := &SignedDetailsSchema{
+	refreshTokenClaims := &schemas.SignedDetailsSchema{
 		UserID:    userID,
 		FirstName: firstName,
 		LastName:  lastName,
@@ -79,8 +71,8 @@ func GetAccessTokenFromHeader(c *gin.Context) (string, error) {
 	return tokenString, nil
 }
 
-func ValidateToken(tokenString string) (*SignedDetailsSchema, error) {
-	claims := &SignedDetailsSchema{}
+func ValidateToken(tokenString string) (*schemas.SignedDetailsSchema, error) {
+	claims := &schemas.SignedDetailsSchema{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("invalid token")
@@ -90,7 +82,7 @@ func ValidateToken(tokenString string) (*SignedDetailsSchema, error) {
 	if err != nil {
 		return nil, err
 	}
-	if claims, ok := token.Claims.(*SignedDetailsSchema); ok && token.Valid {
+	if claims, ok := token.Claims.(*schemas.SignedDetailsSchema); ok && token.Valid {
 		return claims, nil
 	}
 	if claims.ExpiresAt.Before(time.Now()) {

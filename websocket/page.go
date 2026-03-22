@@ -1,6 +1,6 @@
-package chat
+package websocket
 
-const chatPageHTML = `<!DOCTYPE html>
+const ChatPageHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">

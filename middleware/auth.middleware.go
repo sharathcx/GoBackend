@@ -1,4 +1,4 @@
-package auth
+package middleware
 
 import (
 	"GoBackend/utils"
@@ -8,7 +8,7 @@ import (
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token, err := GetAccessTokenFromHeader(c)
+		token, err := utils.GetAccessTokenFromHeader(c)
 		if err != nil {
 			statusCode, response := utils.HandleError(utils.Unauthorized(err.Error()))
 			c.JSON(statusCode, response)
@@ -21,7 +21,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		claims, err := ValidateToken(token)
+		claims, err := utils.ValidateToken(token)
 		if err != nil {
 			statusCode, response := utils.HandleError(utils.Unauthorized(err.Error()))
 			c.JSON(statusCode, response)

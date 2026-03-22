@@ -1,7 +1,9 @@
-package movie
+package handlers
 
 import (
+	"GoBackend/database"
 	"GoBackend/fastapify"
+	"GoBackend/schemas"
 	"GoBackend/utils"
 	"net/http"
 
@@ -11,9 +13,9 @@ import (
 func GetMoviesHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
 
-	req := fastapify.Req[GetMoviesPayloadSchema](c)
+	req := fastapify.Req[schemas.GetMoviesPayloadSchema](c)
 
-	movies, err := GetMovies(ctx, req)
+	movies, err := database.GetMovies(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -23,9 +25,9 @@ func GetMoviesHandler(c *gin.Context) any {
 
 func GetMovieHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
-	params := fastapify.Params[MovieParamsSchema](c)
+	params := fastapify.Params[schemas.MovieParamsSchema](c)
 
-	movie, err := GetMovie(ctx, params.MovieID)
+	movie, err := database.GetMovie(ctx, params.MovieID)
 	if err != nil {
 		return err
 	}
@@ -36,9 +38,9 @@ func GetMovieHandler(c *gin.Context) any {
 func AddMovieHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
 
-	req := fastapify.Req[AddMoviePayloadSchema](c)
+	req := fastapify.Req[schemas.AddMoviePayloadSchema](c)
 
-	var movie MovieSchema
+	var movie schemas.MovieSchema
 	movie.MovieID = utils.InvokeUID("MOV", 4)
 	movie.Title = req.Title
 	movie.PosterPath = req.PosterPath
@@ -47,7 +49,7 @@ func AddMovieHandler(c *gin.Context) any {
 	movie.AdminReview = req.AdminReview
 	movie.Ranking = req.Ranking
 
-	newMovie, err := AddMovie(ctx, &movie)
+	newMovie, err := database.AddMovie(ctx, &movie)
 	if err != nil {
 		return err
 	}
@@ -57,9 +59,9 @@ func AddMovieHandler(c *gin.Context) any {
 
 func DeleteMovieHandler(c *gin.Context) any {
 	ctx := c.Request.Context()
-	params := fastapify.Params[MovieParamsSchema](c)
+	params := fastapify.Params[schemas.MovieParamsSchema](c)
 
-	movie, err := DeleteMovie(ctx, params.MovieID)
+	movie, err := database.DeleteMovie(ctx, params.MovieID)
 	if err != nil {
 		return err
 	}

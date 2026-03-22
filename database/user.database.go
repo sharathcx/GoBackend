@@ -1,19 +1,24 @@
-package user
+package database
 
 import (
-	"GoBackend/database"
+	"GoBackend/schemas"
 	"GoBackend/utils"
 	"context"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-var userCollection = database.OpenCollection("users")
+var userCollection *mongo.Collection
 
-func GetUser(ctx context.Context, userID string) (*UserSchema, *utils.ApiError) {
-	var user UserSchema
+func init() {
+	userCollection = OpenCollection("users")
+}
+
+func GetUser(ctx context.Context, userID string) (*schemas.UserSchema, *utils.ApiError) {
+	var user schemas.UserSchema
 
 	err := userCollection.FindOne(ctx, bson.M{"user_id": userID}).Decode(&user)
 	if err != nil {
@@ -23,8 +28,8 @@ func GetUser(ctx context.Context, userID string) (*UserSchema, *utils.ApiError) 
 	return &user, nil
 }
 
-func UpdateUser(ctx context.Context, userID string, req *UpdateUserPayloadSchema) (*UserSchema, *utils.ApiError) {
-	var user UserSchema
+func UpdateUser(ctx context.Context, userID string, req *schemas.UpdateUserPayloadSchema) (*schemas.UserSchema, *utils.ApiError) {
+	var user schemas.UserSchema
 	if req.Email != "" {
 		emailExists, err := userCollection.CountDocuments(ctx, bson.M{"email": req.Email})
 		if err != nil {
@@ -48,7 +53,7 @@ func UpdateUser(ctx context.Context, userID string, req *UpdateUserPayloadSchema
 	return &user, nil
 }
 
-func InsertUser(ctx context.Context, req *UserSchema) (*UserSchema, *utils.ApiError) {
+func InsertUser(ctx context.Context, req *schemas.UserSchema) (*schemas.UserSchema, *utils.ApiError) {
 	emailExists, err := userCollection.CountDocuments(ctx, bson.M{"email": req.Email})
 	if err != nil {
 		return nil, utils.InternalError(err.Error())
@@ -64,8 +69,8 @@ func InsertUser(ctx context.Context, req *UserSchema) (*UserSchema, *utils.ApiEr
 	return req, nil
 }
 
-func DeleteUser(ctx context.Context, userID string) (*UserSchema, *utils.ApiError) {
-	var user UserSchema
+func DeleteUser(ctx context.Context, userID string) (*schemas.UserSchema, *utils.ApiError) {
+	var user schemas.UserSchema
 
 	err := userCollection.FindOneAndDelete(ctx, bson.M{"user_id": userID}).Decode(&user)
 	if err != nil {
@@ -75,8 +80,8 @@ func DeleteUser(ctx context.Context, userID string) (*UserSchema, *utils.ApiErro
 	return &user, nil
 }
 
-func LoginUser(ctx context.Context, req *UserLoginPayloadSchema) (*UserSchema, *utils.ApiError) {
-	var user UserSchema
+func LoginUser(ctx context.Context, req *schemas.UserLoginPayloadSchema) (*schemas.UserSchema, *utils.ApiError) {
+	var user schemas.UserSchema
 
 	err := userCollection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&user)
 	if err != nil {
@@ -86,8 +91,8 @@ func LoginUser(ctx context.Context, req *UserLoginPayloadSchema) (*UserSchema, *
 	return &user, nil
 }
 
-func UpdateAllTokens(ctx context.Context, userID string, accessToken string, refreshToken string) (*UserSchema, *utils.ApiError) {
-	var user UserSchema
+func UpdateAllTokens(ctx context.Context, userID string, accessToken string, refreshToken string) (*schemas.UserSchema, *utils.ApiError) {
+	var user schemas.UserSchema
 	update := bson.M{
 		"$set": bson.M{
 			"access_token":  accessToken,
