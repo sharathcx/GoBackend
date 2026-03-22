@@ -6,6 +6,7 @@ import (
 
 	"GoBackend/fastapify"
 	"GoBackend/globals"
+	"GoBackend/modules/chat"
 	"GoBackend/modules/movie"
 	"GoBackend/modules/user"
 
@@ -20,6 +21,7 @@ func main() {
 
 	movie.RegisterRoutes(api)
 	user.RegisterRoutes(api)
+	chat.RegisterRoutes(api)
 
 	api.SetupSwagger("/openapi.json")
 
